@@ -10,16 +10,22 @@ sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
-job.init(args['JOB_NAME'], args)
+job.init(args['JOB_NAME'])
 
-# Define your transformation logic here
-# Example: Read data from customer_trusted and accelerometer_trusted tables, apply necessary joins and filters, and store in customers_curated table
+# Read customer_trusted data
+customer_trusted_dyf = glueContext.create_dynamic_frame.from_catalog(database="my_database",
+                                                                     table_name="customer_trusted")
 
-customer_data = glueContext.create_dynamic_frame.from_catalog(database = "my_database", table_name = "customer_trusted")
-accelerometer_data = glueContext.create_dynamic_frame.from_catalog(database = "my_database", table_name = "accelerometer_trusted")
+# Read accelerometer_trusted data
+accelerometer_trusted_dyf = glueContext.create_dynamic_frame.from_catalog(database="my_database",
+                                                                           table_name="accelerometer_trusted")
 
-# Perform required joins and filters to create the curated table
+# Perform inner join on a suitable field (e.g., timestamp) to join customer_trusted and accelerometer_trusted data
+joined_dyf = Join.apply(customer_trusted_dyf, accelerometer_trusted_dyf, 'join_field', 'join_field')
 
-glueContext.write_dynamic_frame.from_catalog(frame = curated_data, database = "my_database", table_name = "customers_curated")
+# Write to curated table
+glueContext.write_dynamic_frame.from_catalog(frame=joined_dyf,
+                                             database="my_database",
+                                             table_name="curated_table")
 
 job.commit()
