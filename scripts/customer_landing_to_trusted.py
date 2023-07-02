@@ -13,15 +13,32 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
+# Read data from customer_landing table
+customer_landing_dynamic_frame = glueContext.create_dynamic_frame.from_catalog(database="my_database",
+                                                                                table_name="customer_landing")
+
+# Read data from customer_trusted table
+customer_trusted_dynamic_frame = glueContext.create_dynamic_frame.from_catalog(database="my_database",
+                                                                                table_name="customer_trusted")
+
 # Apply filter transformation to remove rows with blank shareWithResearchAsOfDate
 filtered_dynamic_frame = Filter.apply(
     frame=raw_dynamic_frame,
     f=lambda x: x["shareWithResearchAsOfDate"] is not None
 )
 
-# Convert the filtered dynamic frame back to a Glue dynamic frame
+# Apply join transformation to join customer_landing and customer_trusted on the serialnumber field
+joined_dynamic_frame = Join.apply(
+    frame1=customer_landing_dynamic_frame,
+    frame2=customer_trusted_dynamic_frame,
+    keys1=["serialnumber"],
+    keys2=["serialnumber"],
+    transformation_ctx="joined_dynamic_frame"
+)
+
+# Convert the joined dynamic frame back to a Glue dynamic frame
 trusted_dynamic_frame = DynamicFrame.fromDF(
-    filtered_dynamic_frame.toDF(),
+    joined_dynamic_frame.toDF(),
     glueContext,
     "trusted_dynamic_frame"
 )
@@ -29,7 +46,7 @@ trusted_dynamic_frame = DynamicFrame.fromDF(
 # Write the trusted dynamic frame to the trusted zone
 glueContext.write_dynamic_frame.from_catalog(
     frame=trusted_dynamic_frame,
-    database="your_database_name",
+    database="my_database",
     table_name="customer_trusted"
 )
 
