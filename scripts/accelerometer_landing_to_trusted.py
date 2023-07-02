@@ -10,14 +10,26 @@ sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
-job.init(args['JOB_NAME'], args)
+job.init(args['JOB_NAME'])
 
-# Define your transformation logic here
-# Example: Read data from accelerometer_landing table, filter records based on shareWithResearchAsOfDate, and store in accelerometer_trusted table
+# Read accelerometer_landing data
+accelerometer_landing_dyf = glueContext.create_dynamic_frame.from_catalog(database="my_database",
+                                                                          table_name="accelerometer_landing")
 
-datasource = glueContext.create_dynamic_frame.from_catalog(database = "my_database", table_name = "accelerometer_landing")
-filtered_data = Filter.apply(frame = datasource, f = lambda x: x["shareWithResearchAsOfDate"] is not None)
+# Read customer_trusted data
+customer_trusted_dyf = glueContext.create_dynamic_frame.from_catalog(database="my_database",
+                                                                      table_name="customer_trusted")
 
-glueContext.write_dynamic_frame.from_catalog(frame = filtered_data, database = "my_database", table_name = "accelerometer_trusted")
+# Perform inner join on serialnumber field
+joined_dyf = Join.apply(accelerometer_landing_dyf, customer_trusted_dyf, 'serialnumber', 'serialnumber')
+
+# Filter records with non-blank shareWithResearchAsOfDate
+filtered_dyf = Filter.apply(frame=joined_dyf,
+                            f=lambda x: x["shareWithResearchAsOfDate"] is not None and x["shareWithResearchAsOfDate"] != "")
+
+# Write to accelerometer_trusted table
+glueContext.write_dynamic_frame.from_catalog(frame=filtered_dyf,
+                                             database="my_database",
+                                             table_name="accelerometer_trusted")
 
 job.commit()
